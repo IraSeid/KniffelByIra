@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#222">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="KniffelByIra">
+<link rel="manifest" href="manifest.json">
+<title>KniffelByIra</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f2f2f2;color:#222}
+header{background:#222;color:#fff;padding:12px;text-align:center;position:sticky;top:0;z-index:10}
+h1{margin:0;font-size:24px}.sub{font-size:12px;opacity:.7;margin-top:3px}
+.container{padding:10px;max-width:1200px;margin:auto}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+button{border:0;border-radius:8px;padding:10px 14px;font-size:15px;cursor:pointer;touch-action:manipulation}
+.add{background:#2e7d32;color:#fff}.reset{background:#c62828;color:#fff}.rotate{background:#1565c0;color:#fff}
+.table-wrapper{overflow-x:auto;background:#fff;border-radius:10px;box-shadow:0 2px 8px #0002;-webkit-overflow-scrolling:touch}
+.players{display:grid;min-width:760px}
+.cell{padding:7px;border-right:1px solid #ddd;border-bottom:1px solid #ddd;min-height:50px;display:flex;align-items:center}
+.header{background:#333;color:#fff;font-weight:bold;justify-content:center}
+.category{font-weight:bold;background:#fafafa;gap:7px}.category-icon{font-size:25px;width:38px;min-width:38px;text-align:center}.category-name{line-height:1.1}
+.section{background:#e9e9e9;font-weight:bold}.summary{background:#eef6ff;font-weight:bold}.bonus{background:#fff3cd;font-weight:bold}.total{background:#dff0d8;font-weight:bold}
+input{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font-size:16px;text-align:center;background:#fff}
+input:focus{outline:2px solid #1976d2;border-color:#1976d2}.score{font-size:17px}
+.player-header{position:relative;width:100%}.player-name-input{padding-right:38px}
+.remove-player{position:absolute;right:3px;top:50%;transform:translateY(-50%);width:28px;height:28px;padding:0;margin:0;border-radius:50%;background:#c62828;color:#fff;font-size:16px}
+.bonus-reached{color:#2e7d32}.bonus-missing{color:#c62828}
+@media(max-width:600px){h1{font-size:21px}.container{padding:7px}button{font-size:14px;padding:9px 11px}}
+@media(orientation:landscape){header{padding:7px}h1{font-size:20px}.container{padding:6px}.cell{min-height:43px;padding:5px}input{padding:7px}}
+</style>
+</head>
+<body>
+<header><h1>🎲 KniffelByIra</h1><div class="sub">Deine digitale Kniffel-Tabelle</div></header>
+<div class="container">
+<div class="toolbar">
+<button class="add" onclick="addPlayer()">+ Spieler</button>
+<button class="rotate" onclick="toggleLandscape()">🔄 Querformat</button>
+<button class="reset" onclick="resetGame()">Spiel zurücksetzen</button>
+</div>
+<div class="table-wrapper"><div class="players" id="scoreTable"></div></div>
+</div>
+<script>
+const upperCategories=[
+{name:"Einser",multiplier:1,icon:"⚀"},{name:"Zweier",multiplier:2,icon:"⚁"},
+{name:"Dreier",multiplier:3,icon:"⚂"},{name:"Vierer",multiplier:4,icon:"⚃"},
+{name:"Fünfer",multiplier:5,icon:"⚄"},{name:"Sechser",multiplier:6,icon:"⚅"}];
+const lowerCategories=[
+{name:"Dreierpasch",icon:"🎲🎲🎲"},{name:"Viererpasch",icon:"🎲🎲🎲🎲"},
+{name:"Full House",icon:"🏠"},{name:"Kleine Straße",icon:"➖➖➖➖"},
+{name:"Große Straße",icon:"🔢"},{name:"Kniffel",icon:"🎲✨"},{name:"Chance",icon:"🍀"}];
+let players=JSON.parse(localStorage.getItem("kniffelPlayers"))||[
+{name:"Spieler 1",scores:{}},{name:"Spieler 2",scores:{}}];
+function save(){localStorage.setItem("kniffelPlayers",JSON.stringify(players))}
+function createCell(text,cls){const c=document.createElement("div");c.className=cls;c.textContent=text;return c}
+function addSectionRow(text,table){table.appendChild(createCell(text,"cell section"));players.forEach(()=>table.appendChild(createCell("","cell section")))}
+function createCategoryCell(icon,name){const c=createCell("","cell category");const i=document.createElement("span");i.className="category-icon";i.textContent=icon;const n=document.createElement("span");n.className="category-name";n.textContent=name;c.append(i,n);return c}
+function calculateUpperTotal(p){return upperCategories.reduce((t,c)=>t+(Number(p.scores[c.name])||0),0)}
+function calculateBonus(p){return calculateUpperTotal(p)>=63?35:0}
+function calculateTotal(p){let t=calculateUpperTotal(p)+calculateBonus(p);lowerCategories.forEach(c=>t+=Number(p.scores[c.name])||0);return t}
+function createBonusCell(p){const total=calculateUpperTotal(p),c=createCell("","cell bonus calculation-bonus-missing");if(total>=63){c.textContent="✓ Bonus erreicht";c.classList.add("bonus-reached")}else{c.textContent=`${63-total} Punkte`;c.classList.add("bonus-missing")}return c}
+function render(){
+const table=document.getElementById("scoreTable");
+table.style.gridTemplateColumns=`160px repeat(${players.length},minmax(100px,1fr))`;table.innerHTML="";
+table.appendChild(createCell("Kategorie","cell header"));
+players.forEach((p,index)=>{const cell=createCell("","cell header"),w=document.createElement("div");w.className="player-header";const input=document.createElement("input");input.className="player-name-input";input.value=p.name;input.placeholder="Name";input.addEventListener("input",()=>{players[index].name=input.value;save()});const b=document.createElement("button");b.className="remove-player";b.textContent="×";b.title="Spieler entfernen";b.addEventListener("click",()=>removePlayer(index));w.append(input,b);cell.appendChild(w);table.appendChild(cell)});
+addSectionRow("OBERER BEREICH",table);
+upperCategories.forEach(cat=>{table.appendChild(createCategoryCell(cat.icon,cat.name));players.forEach(p=>{const cell=createCell("","cell category"),input=document.createElement("input");input.type="number";input.min="0";input.max=cat.multiplier*6;input.className="score";input.value=p.scores[cat.name]??"";input.addEventListener("input",()=>{let v=input.value;if(v==="")delete p.scores[cat.name];else{v=Math.max(0,Math.min(Number(v),cat.multiplier*6));input.value=v;p.scores[cat.name]=v}save();updateCalculations()});cell.appendChild(input);table.appendChild(cell)})});
+table.appendChild(createCell("Oben gesamt","cell summary"));players.forEach(p=>table.appendChild(createCell(calculateUpperTotal(p),"cell summary calculation-upper")));
+table.appendChild(createCell("Bis Bonus","cell bonus"));players.forEach(p=>table.appendChild(createBonusCell(p)));
+table.appendChild(createCell("Bonus","cell bonus"));players.forEach(p=>table.appendChild(createCell(calculateBonus(p),"cell bonus calculation-bonus")));
+addSectionRow("UNTERER BEREICH",table);
+lowerCategories.forEach(cat=>{table.appendChild(createCategoryCell(cat.icon,cat.name));players.forEach(p=>{const cell=createCell("","cell category"),input=document.createElement("input");input.type="number";input.min="0";input.className="score";input.value=p.scores[cat.name]??"";input.addEventListener("input",()=>{if(input.value==="")delete p.scores[cat.name];else p.scores[cat.name]=Math.max(0,Number(input.value));save();updateCalculations()});cell.appendChild(input);table.appendChild(cell)})});
+table.appendChild(createCell("Gesamt","cell total"));players.forEach(p=>table.appendChild(createCell(calculateTotal(p),"cell total calculation-total")));
+}
+function updateCalculations(){
+const upper=document.querySelectorAll(".calculation-upper"),bonus=document.querySelectorAll(".calculation-bonus"),missing=document.querySelectorAll(".calculation-bonus-missing"),total=document.querySelectorAll(".calculation-total");
+players.forEach((p,i)=>{if(upper[i])upper[i].textContent=calculateUpperTotal(p);if(bonus[i])bonus[i].textContent=calculateBonus(p);if(missing[i]){const t=calculateUpperTotal(p);missing[i].textContent=t>=63?"✓ Bonus erreicht":`${63-t} Punkte`;missing[i].classList.toggle("bonus-reached",t>=63);missing[i].classList.toggle("bonus-missing",t<63)}if(total[i])total[i].textContent=calculateTotal(p)})
+}
+function addPlayer(){if(players.length>=6){alert("Maximal 6 Spieler.");return}players.push({name:`Spieler ${players.length+1}`,scores:{}});save();render()}
+function removePlayer(index){if(players.length<=1){alert("Mindestens ein Spieler muss vorhanden sein.");return}const name=players[index].name||`Spieler ${index+1}`;if(confirm(`Möchtest du "${name}" wirklich entfernen?`)){players.splice(index,1);save();render()}}
+function resetGame(){if(!confirm("Möchtest du wirklich alle Punkte zurücksetzen?"))return;players.forEach(p=>p.scores={});save();render()}
+async function toggleLandscape(){document.body.classList.toggle("landscape");const active=document.body.classList.contains("landscape");if(screen.orientation?.lock){try{active?await screen.orientation.lock("landscape"):screen.orientation.unlock()}catch(e){}}}
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js"))}
+render();
+</script>
+</body>
+</html>
